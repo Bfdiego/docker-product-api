@@ -1,0 +1,38 @@
+name: UPB Devops 2025 CICD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/apache-web-upb:latest .
+
+      - name: Publish image to Docker Hub
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/apache-web-upb:latest
+
+  deploy:
+    needs: build
+    # Aquí usamos el runner self-hosted (tu EC2)
+    runs-on: [ self-hosted ]
+    steps:
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Pull image from Docker Hub
+        run: docker pull ${{ secrets.DOCKER_USERNAME }}/apache-web-upb:latest
+
+      - name: Stop old container (if exists)
+        run: docker rm -f apache-web-container || true
+
+      - name: Run new container
+        run: docker run -d -p 80:80 --name apache-web-container ${{ secrets.DOCKER_USERNAME }}/apache-web-upb:latest
